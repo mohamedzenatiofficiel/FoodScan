@@ -23,8 +23,23 @@ sys.modules['PIL'] = pil_stub
 sys.modules['PIL.Image'] = pil_image_stub
 
 st_lib = types.ModuleType('streamlit')
-for attr in ['title', 'file_uploader', 'image', 'button', 'success', 'error', 'table']:
+for attr in ['title', 'file_uploader', 'image', 'button', 'success', 'error', 'table', 'header', 'write']:
     setattr(st_lib, attr, lambda *args, **kwargs: None)
+
+class Sidebar:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def header(self, *a, **k):
+        pass
+
+    def write(self, *a, **k):
+        pass
+
+st_lib.sidebar = Sidebar()
 sys.modules['streamlit'] = st_lib
 
 # Import application module under a different name to avoid conflict with the stubbed library

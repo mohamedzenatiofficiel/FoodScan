@@ -2,6 +2,12 @@ import streamlit as st
 from pyzbar.pyzbar import decode
 from PIL import Image
 import requests
+from datetime import datetime
+from pathlib import Path
+import sys
+
+sys.path.append(str(Path(__file__).resolve().parent))
+import history
 
 def read_barcode_from_image(image):
     """
@@ -31,7 +37,7 @@ def get_product_info(barcode):
         data = response.json()
 
         if data['status'] == 0:
-            return None, None, None
+            return "Produit non trouvé.", None, None
 
         product = data['product']
         name = product.get('product_name', 'Nom non disponible')
@@ -40,10 +46,22 @@ def get_product_info(barcode):
 
         return name, ingredients, nutriscore
     else:
-        return None, None, None
+        return "Erreur lors de la récupération des données.", None, None
 
 # Configuration de l'interface Streamlit
 st.title("Scanner de code-barres et récupération d'informations sur le produit")
+
+# Show history in sidebar
+history_entries = history.load_history()
+with st.sidebar:
+    st.header("Historique")
+    if history_entries:
+        for entry in reversed(history_entries):
+            st.write(
+                f"{entry['date']} - {entry['name']} ({entry['barcode']}) - {entry['nutriscore']}"
+            )
+    else:
+        st.write("Aucun historique.")
 
 uploaded_file = st.file_uploader("Chargez une image contenant un code-barres", type=["png", "jpg", "jpeg"])
 
@@ -66,6 +84,8 @@ if uploaded_file is not None:
                     "Nutri-Score": [nutriscore]
                 }
                 st.table(product_info)
+                # Save scan in history
+                history.append_history(barcode_data, name, nutriscore)
             else:
                 st.error("Produit non trouv\u00e9 ou erreur lors de la r\u00e9cuperation des donn\u00e9es.")
         else:
