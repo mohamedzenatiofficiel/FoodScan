@@ -23,7 +23,7 @@ sys.modules['PIL'] = pil_stub
 sys.modules['PIL.Image'] = pil_image_stub
 
 st_lib = types.ModuleType('streamlit')
-for attr in ['title', 'file_uploader', 'image', 'button', 'success', 'error', 'table']:
+for attr in ['title', 'file_uploader', 'image', 'button', 'success', 'error', 'table', 'markdown', 'info']:
     setattr(st_lib, attr, lambda *args, **kwargs: None)
 sys.modules['streamlit'] = st_lib
 
@@ -35,6 +35,7 @@ spec.loader.exec_module(app_module)
 
 read_barcode_from_image = app_module.read_barcode_from_image
 get_product_info = app_module.get_product_info
+get_alternative_products = app_module.get_alternative_products
 
 # Test read_barcode_from_image with valid barcode
 @patch('app_module.decode')
@@ -62,16 +63,18 @@ def test_get_product_info_success(mock_get):
         'product': {
             'product_name': 'Test Product',
             'ingredients_text': 'Water, Sugar',
-            'nutriscore_grade': 'a'
+            'nutriscore_grade': 'a',
+            'categories': 'Beverages'
         }
     }
     mock_get.return_value = mock_response
 
-    name, ingredients, score = get_product_info('123456')
+    name, ingredients, score, categories = get_product_info('123456')
 
     assert name == 'Test Product'
     assert ingredients == 'Water, Sugar'
     assert score == 'a'
+    assert categories == 'Beverages'
 
 # Test get_product_info when product not found
 @patch('app_module.requests.get')
@@ -83,11 +86,12 @@ def test_get_product_info_not_found(mock_get):
     }
     mock_get.return_value = mock_response
 
-    name, ingredients, score = get_product_info('0000')
+    name, ingredients, score, categories = get_product_info('0000')
 
     assert name == 'Produit non trouvé.'
     assert ingredients is None
     assert score is None
+    assert categories is None
 
 # Test get_product_info when API returns error status
 @patch('app_module.requests.get')
@@ -96,8 +100,33 @@ def test_get_product_info_api_error(mock_get):
     mock_response.status_code = 500
     mock_get.return_value = mock_response
 
-    name, ingredients, score = get_product_info('123456')
+    name, ingredients, score, categories = get_product_info('123456')
 
     assert name == 'Erreur lors de la récupération des données.'
     assert ingredients is None
     assert score is None
+    assert categories is None
+
+# Test get_alternative_products returns filtered alternatives
+@patch('app_module.requests.get')
+def test_get_alternative_products(mock_get):
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        'products': [
+            {'product_name': 'P1', 'nutriscore_grade': 'a'},
+            {'product_name': 'P2', 'nutriscore_grade': 'b'},
+            {'product_name': 'P3', 'nutriscore_grade': 'c'}
+        ]
+    }
+    mock_get.return_value = mock_response
+
+    result = get_alternative_products('Beverages', 'c', limit=2)
+    assert result == [
+        {'Nom': 'P1', 'Nutri-Score': 'a'},
+        {'Nom': 'P2', 'Nutri-Score': 'b'}
+    ]
+
+# Test get_alternative_products with empty category
+def test_get_alternative_products_empty():
+    assert get_alternative_products('', 'c') == []

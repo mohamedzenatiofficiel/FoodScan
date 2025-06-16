@@ -16,14 +16,7 @@ def read_barcode_from_image(image):
     return None
 
 def get_product_info(barcode):
-    """
-    Retrieve product information from OpenFoodFacts using the barcode.
-
-    Returns:
-        name (str or None): Product name or None if the barcode is invalid or an API error occurs.
-        ingredients (str or None): Product ingredients or None if the barcode is invalid or an API error occurs.
-        nutriscore (str or None): Nutri-Score grade or None if the barcode is invalid or an API error occurs.
-    """
+    """Récupère les informations d'un produit depuis OpenFoodFacts."""
     url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
     response = requests.get(url)
 
@@ -31,16 +24,55 @@ def get_product_info(barcode):
         data = response.json()
 
         if data['status'] == 0:
-            return None, None, None
+            return 'Produit non trouvé.', None, None, None
 
         product = data['product']
         name = product.get('product_name', 'Nom non disponible')
         ingredients = product.get('ingredients_text', 'Ingrédients non disponibles')
         nutriscore = product.get('nutriscore_grade', 'Nutri-Score non disponible')
+        categories = product.get('categories')
 
-        return name, ingredients, nutriscore
+        return name, ingredients, nutriscore, categories
     else:
-        return None, None, None
+        return 'Erreur lors de la récupération des données.', None, None, None
+
+
+def get_alternative_products(categories, current_score, limit=3):
+    """Retourne une liste d'alternatives plus saines basées sur la catégorie."""
+    if not categories:
+        return []
+
+    category = categories.split(',')[0].strip().lower().replace(' ', '-')
+    if not category:
+        return []
+
+    url = (
+        f"https://world.openfoodfacts.org/category/{category}.json"
+        f"?fields=product_name,nutriscore_grade&sort_by=nutriscore_grade"
+    )
+    try:
+        response = requests.get(url)
+    except Exception:
+        return []
+
+    if response.status_code != 200:
+        return []
+
+    data = response.json()
+    products = data.get('products', [])
+
+    alternatives = []
+    for p in products:
+        name = p.get('product_name')
+        score = p.get('nutriscore_grade')
+        if not name or not score:
+            continue
+        if current_score and score.lower() < current_score.lower():
+            alternatives.append({'Nom': name, 'Nutri-Score': score})
+        if len(alternatives) >= limit:
+            break
+
+    return alternatives
 
 # Configuration de l'interface Streamlit
 st.title("Scanner de code-barres et récupération d'informations sur le produit")
@@ -56,9 +88,9 @@ if uploaded_file is not None:
 
         if barcode_data:
             st.success(f"Code-barres détecté: {barcode_data}")
-            name, ingredients, nutriscore = get_product_info(barcode_data)
+            name, ingredients, nutriscore, categories = get_product_info(barcode_data)
 
-            if name is not None:
+            if name is not None and not name.startswith("Erreur") and not name.startswith("Produit"):
                 # Création du tableau
                 product_info = {
                     "Nom du produit": [name],
@@ -66,7 +98,14 @@ if uploaded_file is not None:
                     "Nutri-Score": [nutriscore]
                 }
                 st.table(product_info)
+
+                alternatives = get_alternative_products(categories, nutriscore)
+                if alternatives:
+                    st.markdown("### Alternatives plus saines")
+                    st.table(alternatives)
+                else:
+                    st.info("Aucune alternative plus saine trouvée ou catégorie absente.")
             else:
-                st.error("Produit non trouv\u00e9 ou erreur lors de la r\u00e9cuperation des donn\u00e9es.")
+                st.error("Produit non trouvé ou erreur lors de la récupération des données.")
         else:
             st.error("Aucun code-barres trouvé dans l'image.")
