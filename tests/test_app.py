@@ -23,7 +23,17 @@ sys.modules['PIL'] = pil_stub
 sys.modules['PIL.Image'] = pil_image_stub
 
 st_lib = types.ModuleType('streamlit')
-for attr in ['title', 'file_uploader', 'image', 'button', 'success', 'error', 'table']:
+for attr in [
+    'title',
+    'file_uploader',
+    'image',
+    'button',
+    'success',
+    'error',
+    'table',
+    'camera_input',
+    'radio',
+]:
     setattr(st_lib, attr, lambda *args, **kwargs: None)
 sys.modules['streamlit'] = st_lib
 
