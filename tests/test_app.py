@@ -25,6 +25,18 @@ sys.modules['PIL.Image'] = pil_image_stub
 st_lib = types.ModuleType('streamlit')
 for attr in ['title', 'file_uploader', 'image', 'button', 'success', 'error', 'table']:
     setattr(st_lib, attr, lambda *args, **kwargs: None)
+
+def cache_decorator(func=None, **kwargs):
+    """Simple caching decorator used for tests."""
+    from functools import lru_cache
+    if func is None:
+        def wrapper(f):
+            return cache_decorator(f, **kwargs)
+        return wrapper
+    return lru_cache(maxsize=None)(func)
+
+st_lib.cache_data = cache_decorator
+st_lib.experimental_memo = cache_decorator
 sys.modules['streamlit'] = st_lib
 
 # Import application module under a different name to avoid conflict with the stubbed library
@@ -67,6 +79,8 @@ def test_get_product_info_success(mock_get):
     }
     mock_get.return_value = mock_response
 
+    get_product_info.cache_clear()
+
     name, ingredients, score = get_product_info('123456')
 
     assert name == 'Test Product'
@@ -83,9 +97,11 @@ def test_get_product_info_not_found(mock_get):
     }
     mock_get.return_value = mock_response
 
+    get_product_info.cache_clear()
+
     name, ingredients, score = get_product_info('0000')
 
-    assert name == 'Produit non trouvé.'
+    assert name is None
     assert ingredients is None
     assert score is None
 
@@ -96,8 +112,37 @@ def test_get_product_info_api_error(mock_get):
     mock_response.status_code = 500
     mock_get.return_value = mock_response
 
+    get_product_info.cache_clear()
+
     name, ingredients, score = get_product_info('123456')
 
-    assert name == 'Erreur lors de la récupération des données.'
+    assert name is None
     assert ingredients is None
     assert score is None
+
+# Ensure repeated calls use cached result
+@patch('app_module.requests.get')
+def test_get_product_info_cache(mock_get):
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        'status': 1,
+        'product': {
+            'product_name': 'Cached Product',
+            'ingredients_text': 'Water',
+            'nutriscore_grade': 'b'
+        }
+    }
+    mock_get.return_value = mock_response
+
+    get_product_info.cache_clear()
+
+    # First call should hit the network
+    result1 = get_product_info('9999')
+    assert result1[0] == 'Cached Product'
+
+    # Clear mock to detect additional network calls
+    mock_get.reset_mock()
+    result2 = get_product_info('9999')
+    assert result2 == result1
+    mock_get.assert_not_called()

@@ -3,6 +3,11 @@ from pyzbar.pyzbar import decode
 from PIL import Image
 import requests
 
+try:
+    cache_decorator = st.cache_data
+except AttributeError:  # pragma: no cover - for older Streamlit versions
+    cache_decorator = st.experimental_memo
+
 def read_barcode_from_image(image):
     """
     Lit le code-barres à partir d'une image PIL et retourne les données décodées.
@@ -15,6 +20,7 @@ def read_barcode_from_image(image):
 
     return None
 
+@cache_decorator
 def get_product_info(barcode):
     """
     Retrieve product information from OpenFoodFacts using the barcode.
