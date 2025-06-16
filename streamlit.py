@@ -17,8 +17,13 @@ def read_barcode_from_image(image):
 
 def get_product_info(barcode):
     """
-    Récupère les informations d'un produit via son code-barres en utilisant l'API OpenFoodFacts.
-    Retourne le nom du produit, les ingrédients et le Nutri-Score ainsi qu'un éventuel message d'erreur.
+    Retrieve product information from OpenFoodFacts using the barcode.
+
+    Returns:
+        name (str or None): Product name or None if the barcode is invalid or an API error occurs.
+        ingredients (str or None): Product ingredients or None if the barcode is invalid or an API error occurs.
+        nutriscore (str or None): Nutri-Score grade or None if the barcode is invalid or an API error occurs.
+        error (str or None): Error message if the request failed or the product was not found.
     """
     url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
 
