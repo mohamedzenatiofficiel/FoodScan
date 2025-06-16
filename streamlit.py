@@ -23,12 +23,9 @@ def read_barcode_from_image(image):
 @cache_decorator
 def get_product_info(barcode):
     """
-    Retrieve product information from OpenFoodFacts using the barcode.
-
-    Returns:
-        name (str or None): Product name or None if the barcode is invalid or an API error occurs.
-        ingredients (str or None): Product ingredients or None if the barcode is invalid or an API error occurs.
-        nutriscore (str or None): Nutri-Score grade or None if the barcode is invalid or an API error occurs.
+    Récupère les informations d'un produit via son code-barres en utilisant
+    l'API OpenFoodFacts et retourne le nom du produit, la liste des ingrédients
+    ainsi que son Nutri-Score.
     """
     url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
     response = requests.get(url)
@@ -37,7 +34,7 @@ def get_product_info(barcode):
         data = response.json()
 
         if data['status'] == 0:
-            return None, None, None
+            return "Produit non trouvé.", None, None
 
         product = data['product']
         name = product.get('product_name', 'Nom non disponible')
@@ -46,7 +43,7 @@ def get_product_info(barcode):
 
         return name, ingredients, nutriscore
     else:
-        return None, None, None
+        return "Erreur lors de la récupération des données.", None, None
 
 # Configuration de l'interface Streamlit
 st.title("Scanner de code-barres et récupération d'informations sur le produit")
@@ -64,7 +61,7 @@ if uploaded_file is not None:
             st.success(f"Code-barres détecté: {barcode_data}")
             name, ingredients, nutriscore = get_product_info(barcode_data)
 
-            if name is not None:
+            if name:
                 # Création du tableau
                 product_info = {
                     "Nom du produit": [name],
@@ -73,6 +70,6 @@ if uploaded_file is not None:
                 }
                 st.table(product_info)
             else:
-                st.error("Produit non trouv\u00e9 ou erreur lors de la r\u00e9cuperation des donn\u00e9es.")
+                st.error("Informations sur le produit non disponibles.")
         else:
             st.error("Aucun code-barres trouvé dans l'image.")

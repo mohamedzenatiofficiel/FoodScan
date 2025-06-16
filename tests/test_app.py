@@ -101,7 +101,7 @@ def test_get_product_info_not_found(mock_get):
 
     name, ingredients, score = get_product_info('0000')
 
-    assert name is None
+    assert name == 'Produit non trouv\u00e9.'
     assert ingredients is None
     assert score is None
 
@@ -116,7 +116,7 @@ def test_get_product_info_api_error(mock_get):
 
     name, ingredients, score = get_product_info('123456')
 
-    assert name is None
+    assert name == 'Erreur lors de la r\u00e9cup\u00e9ration des donn\u00e9es.'
     assert ingredients is None
     assert score is None
 
