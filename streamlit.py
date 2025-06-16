@@ -18,25 +18,27 @@ def read_barcode_from_image(image):
 def get_product_info(barcode):
     """
     Récupère les informations d'un produit via son code-barres en utilisant l'API OpenFoodFacts.
-    Retourne le nom du produit, les ingrédients et le Nutri-Score.
+    Retourne le nom du produit, les ingrédients et le Nutri-Score ainsi qu'un éventuel message d'erreur.
     """
     url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
-    response = requests.get(url)
 
-    if response.status_code == 200:
-        data = response.json()
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        return None, None, None, f"Erreur lors de la récupération des données : {exc}"
 
-        if data['status'] == 0:
-            return "Produit non trouvé.", None, None
+    data = response.json()
 
-        product = data['product']
-        name = product.get('product_name', 'Nom non disponible')
-        ingredients = product.get('ingredients_text', 'Ingrédients non disponibles')
-        nutriscore = product.get('nutriscore_grade', 'Nutri-Score non disponible')
+    if data.get('status') == 0:
+        return None, None, None, "Produit non trouvé."
 
-        return name, ingredients, nutriscore
-    else:
-        return "Erreur lors de la récupération des données.", None, None
+    product = data.get('product', {})
+    name = product.get('product_name', 'Nom non disponible')
+    ingredients = product.get('ingredients_text', 'Ingrédients non disponibles')
+    nutriscore = product.get('nutriscore_grade', 'Nutri-Score non disponible')
+
+    return name, ingredients, nutriscore, None
 
 # Configuration de l'interface Streamlit
 st.title("Scanner de code-barres et récupération d'informations sur le produit")
@@ -52,9 +54,11 @@ if uploaded_file is not None:
 
         if barcode_data:
             st.success(f"Code-barres détecté: {barcode_data}")
-            name, ingredients, nutriscore = get_product_info(barcode_data)
+            name, ingredients, nutriscore, error = get_product_info(barcode_data)
 
-            if name:
+            if error:
+                st.error(error)
+            elif name:
                 # Création du tableau
                 product_info = {
                     "Nom du produit": [name],
