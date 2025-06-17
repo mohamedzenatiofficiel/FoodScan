@@ -16,13 +16,19 @@ def read_barcode_from_image(image):
     return None
 
 def get_product_info(barcode):
-    """
-    Retrieve product information from OpenFoodFacts using the barcode.
+    """Retrieve product information from OpenFoodFacts using the barcode.
 
     Returns:
-        name (str or None): Product name or None if the barcode is invalid or an API error occurs.
-        ingredients (str or None): Product ingredients or None if the barcode is invalid or an API error occurs.
-        nutriscore (str or None): Nutri-Score grade or None if the barcode is invalid or an API error occurs.
+        name (str or None): Product name or ``None`` if the barcode is invalid
+            or an API error occurs.
+        ingredients (str or None): Product ingredients or ``None`` if the
+            barcode is invalid or an API error occurs.
+        nutriscore (str or None): Nutri-Score grade or ``None`` if the barcode
+            is invalid or an API error occurs.
+        categories (str or None): Comma separated categories or ``None`` if not
+            available.
+        tags (list or None): List of category tags (``categories_tags`` or
+            ``categories_hierarchy``) when present.
     """
     url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
     response = requests.get(url)
@@ -31,7 +37,7 @@ def get_product_info(barcode):
         data = response.json()
 
         if data.get('status') == 0:
-            return 'Produit non trouvé.', None, None, None
+            return 'Produit non trouvé.', None, None, None, None
 
         product = data.get('product', {})
         name = product.get('product_name', 'Nom non disponible')
@@ -39,22 +45,32 @@ def get_product_info(barcode):
         nutriscore = product.get('nutriscore_grade', 'Nutri-Score non disponible')
 
         categories = product.get('categories', '')
-        return name, ingredients, nutriscore, categories
+        tags = product.get('categories_tags') or product.get('categories_hierarchy')
+        return name, ingredients, nutriscore, categories, tags
     else:
-        return 'Erreur lors de la récupération des données.', None, None, None
+        return 'Erreur lors de la récupération des données.', None, None, None, None
 
 
-def get_better_products(categories, nutriscore):
-    """Return a list of similar products with a better Nutri-Score."""
+def get_better_products(categories, nutriscore, tags=None):
+    """Return a list of similar products with a better Nutri-Score.
+
+    ``tags`` should be the list from ``categories_tags`` or ``categories_hierarchy``
+    if available. The most specific tag (last element) is preferred for the
+    search.
+    """
     nutri_order = ["a", "b", "c", "d", "e"]
 
-    if not categories or nutriscore not in nutri_order:
+    if (not categories and not tags) or nutriscore not in nutri_order:
         return []
 
-    category = categories.split(",")[0].strip()
+    if tags:
+        category = tags[-1]
+    else:
+        category = categories.split(",")[0].strip()
     current_index = nutri_order.index(nutriscore)
     better_grades = nutri_order[:current_index]
 
+    results = []
     for grade in better_grades:
         url = (
             "https://world.openfoodfacts.org/cgi/search.pl?"
@@ -65,10 +81,9 @@ def get_better_products(categories, nutriscore):
         if resp.status_code == 200:
             data = resp.json()
             products = [p.get("product_name") for p in data.get("products", []) if p.get("product_name")]
-            if products:
-                return products
+            results.extend(products)
 
-    return []
+    return results
 
 # Configuration de l'interface Streamlit
 st.title("Scanner de code-barres et récupération d'informations sur le produit")
@@ -100,7 +115,7 @@ if image is not None:
 
         if barcode_data:
             st.success(f"Code-barres détecté: {barcode_data}")
-            name, ingredients, nutriscore, categories = get_product_info(barcode_data)
+            name, ingredients, nutriscore, categories, tags = get_product_info(barcode_data)
 
             if ingredients is not None:
                 # Création du tableau
@@ -111,7 +126,7 @@ if image is not None:
                 }
                 st.table(product_info)
 
-                suggestions = get_better_products(categories, nutriscore)
+                suggestions = get_better_products(categories, nutriscore, tags)
                 if suggestions:
                     st.success("Produits similaires de meilleure qualité :")
                     for s in suggestions:
